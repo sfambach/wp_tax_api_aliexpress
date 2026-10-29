@@ -43,4 +43,20 @@ final class AliExpressMailParserTest extends TestCase
         self::assertNotSame([], (new AliExpressMailParser('1.2.3'))->kinds());
         self::assertSame('1.2.3', (new AliExpressMailParser('1.2.3'))->version());
     }
+
+    public function testParcelMailNamesOnlyItsTrackingNumber(): void
+    {
+        $order = self::read('a3');
+
+        self::assertSame(['shipped', true, ['00340400000000000001']], [$order['kind'], $order['number_missing'], $order['tracking']]);
+        self::assertSame(['(5-20 Stück) AT32F415RCT7 LQFP-64(10...'], array_column($order['lines'], 'title'));
+    }
+
+    public function testATitleCutShortKeepsItsPlaceBeforeTheVariant(): void
+    {
+        $order = self::read('a4');
+
+        self::assertSame(['3000000000000001', 'shipped', '50.57'], [$order['order_number'], $order['kind'], $order['total']]);
+        self::assertSame(['1-10pcs D1 MINI ESP32 WiFi+Bl...'], array_column($order['lines'], 'title'));
+    }
 }

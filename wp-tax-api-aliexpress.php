@@ -3,7 +3,7 @@
 /**
  * Plugin Name:       Taxmod AliExpress
  * Description:       Reads AliExpress order mails from the mailbox of Taxmod Mail and hands them to the inbox of the Taxonomy Modeller.
- * Version:           0.0.1
+ * Version:           0.0.2
  * Requires at least: 6.9
  * Requires PHP:      8.2
  * Author:            Stefan Fambach (SteFam), Claude (Anthropic AI)
