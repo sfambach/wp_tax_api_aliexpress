@@ -72,4 +72,26 @@ final class AliExpressMailParserTest extends TestCase
         self::assertSame(['shipped', true, ['00340400000000000002'], '2026-10-25'], [$parcel['kind'], $parcel['number_missing'], $parcel['tracking'], $parcel['shipped_date']]);
         self::assertSame(['ESP8266 ESP32 Development Board Test...', 'ESP-32S ESP-WROOM-32 ESP-WROOM-32D ...'], array_column($parcel['lines'], 'title'));
     }
+
+    public function testAnOrderOfOneItemPricesItThroughTheOrderSum(): void
+    {
+        $order = self::read('a7');
+
+        self::assertSame(['ordered', '4.4'], [$order['kind'], $order['total']]);
+        self::assertSame(['100Pcs JST XH2.54 2/3/4/5 Pin...'], array_column($order['lines'], 'title'));
+        self::assertSame(['2.2'], array_column($order['lines'], 'unit_price'));
+    }
+
+    public function testAEuroPriceBeforeTheQuantityIsTheUnitPrice(): void
+    {
+        $order = self::read('a8');
+
+        self::assertSame(['ESP32 DevKit', 'USB-C Kabel'], array_column($order['lines'], 'title'));
+        self::assertSame(['3.15', null], array_column($order['lines'], 'unit_price'));
+    }
+
+    public function testADollarPriceIsNoUnitPriceOfAEuroOrder(): void
+    {
+        self::assertSame([null, null], array_column(self::read('a1')['lines'], 'unit_price'));
+    }
 }

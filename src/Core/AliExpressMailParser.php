@@ -10,7 +10,7 @@ use Taxmod\Core\Import\OrderProposal;
 use Taxmod\Core\Import\ProposalKind;
 
 /**
- * AliExpress: mails about one order number — «Bestellauftrag bestätigt» / «auf Bestätigung wird gewartet» (title, quantity,
+ * AliExpress: mails about one order number — «Bestellauftrag bestätigt» / «auf Bestätigung wird gewartet» (title, quantity, unit price,
  * order sum), «versandt» and «zugestellt» (status, tracking number if the mail names one); «Packstück <nr>: beim Zoll» /
  * «mit lokalem Kurier» name only the parcel number and are read as «versandt» without an order number (D-1017).
  * Moved here from Taxmod Mail (D-1006). Port of legacy/kaeufe-import/kaeufe_import/shops/aliexpress.py.
@@ -58,8 +58,9 @@ final class AliExpressMailParser implements OrderMailParser
             return new OrderProposal($this->shopName(), '', ProposalKind::NoReceipt);
         }
 
-        $items = self::items($lines);
         $total = Text::after($lines, 'Bestellsumme');
+        $sum = $total === null ? null : Text::money($total)[0];
+        $items = self::items($lines, $sum);
         // «Bestellauftrag bestätigt» is the order confirmation; «auf Bestätigung wird gewartet» only says it is on its way.
         $kind = match (true) {
             str_contains($subject, 'zugestellt') || str_contains($subject, 'geliefert') => ProposalKind::Delivered,
@@ -74,7 +75,7 @@ final class AliExpressMailParser implements OrderMailParser
             ? [$found[1]] : [];
 
         return new OrderProposal($this->shopName(), $match[1], $kind, $orderDate, 'EUR', $items->lines(),
-            null, $total === null ? null : Text::decimal(Text::money($total)[0]),
+            null, Text::decimal($sum),
             shippedDate: $kind === ProposalKind::Shipped ? $mail->date?->format('Y-m-d') : null, trackingNumbers: $tracking);
     }
 
@@ -91,18 +92,34 @@ final class AliExpressMailParser implements OrderMailParser
             shippedDate: $kind === ProposalKind::Shipped ? $mail->date?->format('Y-m-d') : null, trackingNumbers: [$number], numberMissing: true);
     }
 
-    /** @param list<string> $lines */
-    private static function items(array $lines): LineCollector
+    /**
+     * The mail names a price per item only now and then; an order of one item names it through the order sum.
+     *
+     * @param list<string> $lines
+     */
+    private static function items(array $lines, ?float $sum = null): LineCollector
     {
         $items = new LineCollector();
+        $found = [];
 
         foreach ($lines as $k => $line) {
             if ($k > 1 && preg_match('/^x(\d+)$/', $line, $quantity) === 1) {
                 // Before «xN» stands the title, or a price or the chosen variant under a title cut short with «...».
+                $priced = preg_match('/^(?:US )?[$€£]?\s*\d[\d.,]*\s*(?:€|EUR)?$/u', $lines[$k - 1]) === 1;
                 $truncated = str_ends_with($lines[$k - 2], '...') || str_ends_with($lines[$k - 2], '…');
-                $title = str_starts_with($lines[$k - 1], '$') || $truncated ? $lines[$k - 2] : $lines[$k - 1];
-                $items->add($title, (float) $quantity[1], null, null);
+                $title = $priced || $truncated ? $lines[$k - 2] : $lines[$k - 1];
+                // Only a euro price: the order is in euro, a dollar figure beside it is the shop's list price.
+                [$amount, $currency] = $priced ? Text::money($lines[$k - 1]) : [null, null];
+                $found[] = [$title, (float) $quantity[1], $currency === 'EUR' ? $amount : null];
             }
+        }
+
+        if (count($found) === 1 && $found[0][2] === null && $sum !== null && $found[0][1] > 0) {
+            $found[0][2] = $sum / $found[0][1];
+        }
+
+        foreach ($found as [$title, $count, $price]) {
+            $items->add($title, $count, $price, null);
         }
 
         return $items;
