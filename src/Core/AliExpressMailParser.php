@@ -42,7 +42,8 @@ final class AliExpressMailParser implements OrderMailParser
     {
         $lines = $mail->lines();
 
-        if (preg_match('/^Packst(?:ü|ue)ck (\d{10,30})/u', $mail->subject, $parcel) === 1) {
+        // Since 2026-10 the parcel mails come in English as well: «Package 0034… has cleared customs».
+        if (preg_match('/^(?:Packst(?:ü|ue)ck|Package) (\d{10,30})/u', $mail->subject, $parcel) === 1) {
             return $this->parcel($mail, $parcel[1]);
         }
 
@@ -82,10 +83,12 @@ final class AliExpressMailParser implements OrderMailParser
      */
     private function parcel(MailMessage $mail, string $number): OrderProposal
     {
-        $kind = str_contains(mb_strtolower($mail->subject), 'zugestellt') ? ProposalKind::Delivered : ProposalKind::Shipped;
+        $subject = mb_strtolower($mail->subject);
+        $delivered = str_contains($subject, 'zugestellt') || (str_contains($subject, 'delivered') && ! str_contains($subject, 'out for delivery'));
+        $kind = $delivered ? ProposalKind::Delivered : ProposalKind::Shipped;
 
         return new OrderProposal($this->shopName(), 'packstueck:' . $number, $kind, null, 'EUR', self::items($mail->lines())->lines(),
-            trackingNumbers: [$number], numberMissing: true);
+            shippedDate: $kind === ProposalKind::Shipped ? $mail->date?->format('Y-m-d') : null, trackingNumbers: [$number], numberMissing: true);
     }
 
     /** @param list<string> $lines */

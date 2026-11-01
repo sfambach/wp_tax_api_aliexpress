@@ -64,4 +64,12 @@ final class AliExpressMailParserTest extends TestCase
     {
         self::assertSame(['no_receipt', ''], [self::read('a5')['kind'], self::read('a5')['order_number']]);
     }
+
+    public function testAnEnglishParcelMailIsReadLikeAGermanOne(): void
+    {
+        $parcel = self::read('a6');
+
+        self::assertSame(['shipped', true, ['00340400000000000002'], '2026-10-25'], [$parcel['kind'], $parcel['number_missing'], $parcel['tracking'], $parcel['shipped_date']]);
+        self::assertSame(['ESP8266 ESP32 Development Board Test...', 'ESP-32S ESP-WROOM-32 ESP-WROOM-32D ...'], array_column($parcel['lines'], 'title'));
+    }
 }
