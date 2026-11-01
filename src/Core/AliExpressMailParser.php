@@ -50,9 +50,15 @@ final class AliExpressMailParser implements OrderMailParser
             return new OrderProposal($this->shopName(), '', ProposalKind::NoReceipt);
         }
 
+        $subject = mb_strtolower($mail->subject);
+
+        // «Wie war Ihr Einkaufserlebnis?» asks for a review; read as a status, it proposed the order again, dated that day.
+        if (str_contains($subject, 'einkaufserlebnis')) {
+            return new OrderProposal($this->shopName(), '', ProposalKind::NoReceipt);
+        }
+
         $items = self::items($lines);
         $total = Text::after($lines, 'Bestellsumme');
-        $subject = mb_strtolower($mail->subject);
         // «Bestellauftrag bestätigt» is the order confirmation; «auf Bestätigung wird gewartet» only says it is on its way.
         $kind = match (true) {
             str_contains($subject, 'zugestellt') || str_contains($subject, 'geliefert') => ProposalKind::Delivered,

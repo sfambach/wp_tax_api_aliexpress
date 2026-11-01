@@ -59,4 +59,9 @@ final class AliExpressMailParserTest extends TestCase
         self::assertSame(['3000000000000001', 'shipped', '50.57'], [$order['order_number'], $order['kind'], $order['total']]);
         self::assertSame(['1-10pcs D1 MINI ESP32 WiFi+Bl...'], array_column($order['lines'], 'title'));
     }
+
+    public function testAReviewRequestIsNoOrderMail(): void
+    {
+        self::assertSame(['no_receipt', ''], [self::read('a5')['kind'], self::read('a5')['order_number']]);
+    }
 }
