@@ -80,6 +80,7 @@ final class AliExpressMailParserTest extends TestCase
         self::assertSame(['ordered', '4.4'], [$order['kind'], $order['total']]);
         self::assertSame(['100Pcs JST XH2.54 2/3/4/5 Pin...'], array_column($order['lines'], 'title'));
         self::assertSame(['2.2'], array_column($order['lines'], 'unit_price'));
+        self::assertSame(['https://ae-pic-a1.aliexpress-media.com/kf/S1.jpg'], array_column($order['lines'], 'image_url'), 'D-1079');
     }
 
     public function testAEuroPriceBeforeTheQuantityIsTheUnitPrice(): void
@@ -88,6 +89,7 @@ final class AliExpressMailParserTest extends TestCase
 
         self::assertSame(['ESP32 DevKit', 'USB-C Kabel'], array_column($order['lines'], 'title'));
         self::assertSame(['3.15', null], array_column($order['lines'], 'unit_price'));
+        self::assertSame([], array_column($order['lines'], 'image_url'), 'one picture for two items goes to neither');
     }
 
     public function testADollarPriceIsNoUnitPriceOfAEuroOrder(): void

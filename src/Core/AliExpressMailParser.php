@@ -60,7 +60,7 @@ final class AliExpressMailParser implements OrderMailParser
 
         $total = Text::after($lines, 'Bestellsumme');
         $sum = $total === null ? null : Text::money($total)[0];
-        $items = self::items($lines, $sum);
+        $items = self::items($lines, $sum, self::pictures($mail->html));
         // «Bestellauftrag bestätigt» is the order confirmation; «auf Bestätigung wird gewartet» only says it is on its way.
         $kind = match (true) {
             str_contains($subject, 'zugestellt') || str_contains($subject, 'geliefert') => ProposalKind::Delivered,
@@ -88,16 +88,18 @@ final class AliExpressMailParser implements OrderMailParser
         $delivered = str_contains($subject, 'zugestellt') || (str_contains($subject, 'delivered') && ! str_contains($subject, 'out for delivery'));
         $kind = $delivered ? ProposalKind::Delivered : ProposalKind::Shipped;
 
-        return new OrderProposal($this->shopName(), 'packstueck:' . $number, $kind, null, 'EUR', self::items($mail->lines())->lines(),
+        return new OrderProposal($this->shopName(), 'packstueck:' . $number, $kind, null, 'EUR', self::items($mail->lines(), null, self::pictures($mail->html))->lines(),
             shippedDate: $kind === ProposalKind::Shipped ? $mail->date?->format('Y-m-d') : null, trackingNumbers: [$number], numberMissing: true);
     }
 
     /**
      * The mail names a price per item only now and then; an order of one item names it through the order sum.
+     * A picture goes to its item only when the mail shows one per item, in the same order (D-1079).
      *
      * @param list<string> $lines
+     * @param list<string> $pictures
      */
-    private static function items(array $lines, ?float $sum = null): LineCollector
+    private static function items(array $lines, ?float $sum = null, array $pictures = []): LineCollector
     {
         $items = new LineCollector();
         $found = [];
@@ -118,11 +120,34 @@ final class AliExpressMailParser implements OrderMailParser
             $found[0][2] = $sum / $found[0][1];
         }
 
-        foreach ($found as [$title, $count, $price]) {
-            $items->add($title, $count, $price, null);
+        $pictures = count($pictures) === count($found) ? $pictures : [];
+
+        foreach ($found as $index => [$title, $count, $price]) {
+            $items->add($title, $count, $price, null, $pictures[$index] ?? null);
         }
 
         return $items;
+    }
+
+    /**
+     * The item pictures: the shop's product image at 100 × 100 px. Icons and the «Das könnte Ihnen auch gefallen» tiles
+     * come in other sizes.
+     *
+     * @return list<string>
+     */
+    private static function pictures(string $html): array
+    {
+        preg_match_all('/<img\b[^>]*>/i', $html, $tags);
+        $found = [];
+
+        foreach ($tags[0] as $tag) {
+            if (preg_match('/\bsrc="(https:\/\/[^"]+\.(?:jpe?g|png|webp))"/i', $tag, $src) === 1
+                && preg_match('/width:\s*100px;\s*height:\s*100px/i', $tag) === 1) {
+                $found[] = html_entity_decode($src[1], ENT_QUOTES);
+            }
+        }
+
+        return $found;
     }
 
     public function kinds(): array
