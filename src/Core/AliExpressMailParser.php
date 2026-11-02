@@ -43,11 +43,12 @@ final class AliExpressMailParser implements OrderMailParser
         $lines = $mail->lines();
 
         // Since 2026-10 the parcel mails come in English as well: «Package 0034… has cleared customs».
-        if (preg_match('/^(?:Packst(?:ü|ue)ck|Package) (\d{10,30})/u', $mail->subject, $parcel) === 1) {
+        // The first parcel number can be the shipper's own («AP0010…»), before the carrier's.
+        if (preg_match('/^(?:Packst(?:ü|ue)ck|Package) ([A-Z]{0,4}\d{10,30})/u', $mail->subject, $parcel) === 1) {
             return $this->parcel($mail, $parcel[1]);
         }
 
-        if (preg_match('/Bestellung (\d{15,20})/', $mail->subject . ' ' . implode(' ', array_slice($lines, 0, 20)), $match) !== 1) {
+        if (preg_match('/(?:Bestellung|Order) (\d{15,20})/', $mail->subject . ' ' . implode(' ', array_slice($lines, 0, 20)), $match) !== 1) {
             return new OrderProposal($this->shopName(), '', ProposalKind::NoReceipt);
         }
 
@@ -62,9 +63,12 @@ final class AliExpressMailParser implements OrderMailParser
         $sum = $total === null ? null : Text::money($total)[0];
         $items = self::items($lines, $sum, self::pictures($mail->html));
         // «Bestellauftrag bestätigt» is the order confirmation; «auf Bestätigung wird gewartet» only says it is on its way.
+        // English since 2026-10: «Order 3077…: collected by the carrier».
+        $delivered = str_contains($subject, 'delivered') && ! str_contains($subject, 'out for delivery');
         $kind = match (true) {
-            str_contains($subject, 'zugestellt') || str_contains($subject, 'geliefert') => ProposalKind::Delivered,
-            str_contains($subject, 'versandt') || str_contains($subject, 'versendet') => ProposalKind::Shipped,
+            str_contains($subject, 'zugestellt') || str_contains($subject, 'geliefert') || $delivered => ProposalKind::Delivered,
+            str_contains($subject, 'versandt') || str_contains($subject, 'versendet') || str_contains($subject, 'carrier')
+                || str_contains($subject, 'shipped') || str_contains($subject, 'in transit') || str_contains($subject, 'out for delivery') => ProposalKind::Shipped,
             str_contains($subject, 'bestätigt') => ProposalKind::Ordered,
             default => ProposalKind::Other,
         };

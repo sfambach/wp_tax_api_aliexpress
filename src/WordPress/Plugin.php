@@ -13,7 +13,7 @@ use Taxmod\Core\Import\Mail\OrderMailParser;
  */
 final class Plugin
 {
-    public const VERSION = '0.0.6';
+    public const VERSION = '0.0.7';
     public const TAB     = 'aliexpress';
 
     public static function boot(): void

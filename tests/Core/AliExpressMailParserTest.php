@@ -96,4 +96,16 @@ final class AliExpressMailParserTest extends TestCase
     {
         self::assertSame([null, null], array_column(self::read('a1')['lines'], 'unit_price'));
     }
+
+    public function testAnEnglishOrderStatusNamesItsOrder(): void
+    {
+        $order = self::read('a9');
+
+        self::assertSame(['8123456789012345678', 'shipped'], [$order['order_number'], $order['kind']]);
+    }
+
+    public function testTheShippersOwnParcelNumberCounts(): void
+    {
+        self::assertSame(['AP00100000000001'], self::read('a10')['tracking']);
+    }
 }
